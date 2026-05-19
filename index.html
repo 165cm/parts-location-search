@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>部品在庫 棚位置検索</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #11161d;
+    --panel: #1b2230;
+    --panel-2: #232c3d;
+    --line: #313c52;
+    --ink: #e8ecf3;
+    --ink-dim: #8794ab;
+    --accent: #4fd1c5;
+    --accent-warm: #f6c453;
+    --warn: #f6915c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  body {
+    background:
+      radial-gradient(900px 500px at 85% -10%, #1d2a3a 0%, transparent 60%),
+      radial-gradient(700px 600px at 0% 110%, #19222e 0%, transparent 55%),
+      var(--bg);
+    padding: 24px 14px 70px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+
+  header { margin-bottom: 18px; }
+  .title-row {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line); padding-bottom: 12px;
+  }
+  h1 { font-size: clamp(20px, 4vw, 28px); font-weight: 900; letter-spacing: .02em; }
+  h1 .mono { font-family: 'JetBrains Mono', monospace; color: var(--accent); }
+  .subtitle { font-size: 12px; color: var(--ink-dim); }
+
+  .steps {
+    display: flex; align-items: center; gap: 6px;
+    margin: 16px 0 22px; font-size: 11.5px; flex-wrap: wrap;
+  }
+  .step { display: flex; align-items: center; gap: 6px; color: var(--ink-dim); }
+  .step .badge {
+    width: 21px; height: 21px; border-radius: 50%;
+    background: var(--panel-2); border: 1.5px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 11px;
+  }
+  .step.active { color: var(--ink); }
+  .step.active .badge { border-color: var(--accent); color: var(--accent); }
+  .step.done { color: var(--accent); }
+  .step.done .badge { background: var(--accent); border-color: var(--accent); color: #0c1116; }
+  .step.skipped { color: #4a5468; }
+  .step.skipped .badge { border-style: dashed; }
+  .step-line { flex: 1; height: 1.5px; background: var(--line); min-width: 14px; max-width: 32px; }
+  .step-line.done { background: var(--accent); }
+
+  .block {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+  }
+  .block.disabled { opacity: .4; pointer-events: none; }
+  .block.hidden { display: none; }
+  .block h2 {
+    font-size: 13px; font-weight: 700; color: var(--ink-dim);
+    letter-spacing: .04em; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .block h2 .num {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--panel-2); color: var(--accent);
+    padding: 2px 8px; border-radius: 5px; font-size: 12px;
+  }
+  .block h2 .picked {
+    margin-left: auto; color: var(--accent); font-weight: 800;
+    font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  }
+
+  .opts { display: flex; flex-wrap: wrap; gap: 7px; }
+  .opt {
+    font-family: 'JetBrains Mono', monospace; font-weight: 800;
+    font-size: 13px; letter-spacing: .03em;
+    background: var(--panel-2); color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; position: relative;
+    transition: transform .08s ease;
+  }
+  .opt:hover { border-color: var(--accent); color: var(--accent); }
+  .opt:active { transform: scale(.96); }
+  .opt.on { background: var(--accent); color: #0c1116; border-color: var(--accent); }
+  .opt .cnt { font-size: 9px; font-weight: 700; opacity: .65; margin-left: 5px; }
+  .opt.on .cnt { opacity: .8; }
+  .opts.models .opt { font-size: 15px; padding: 11px 20px; }
+  .opt .suffix-none { font-style: italic; opacity: .8; }
+
+  /* 末尾記号付きの数値ボタン = 紫系 */
+  .opt.has-suffix {
+    border-color: #7c6cc4;
+    color: #c3b8ef;
+    background: #2a2740;
+  }
+  .opt.has-suffix:hover { border-color: #9d8de0; color: #d6cdf5; }
+  .opt.has-suffix.on {
+    background: #8b7bd8; color: #14101f; border-color: #8b7bd8;
+  }
+  /* 凡例 */
+  .opts-legend {
+    font-size: 10.5px; color: var(--ink-dim); margin-bottom: 9px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .opts-legend .swatch {
+    width: 11px; height: 11px; border-radius: 3px;
+    background: #2a2740; border: 1.5px solid #7c6cc4; display: inline-block;
+  }
+
+  .result-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .result-head .label { font-size: 13px; color: var(--ink-dim); font-weight: 700; }
+  .result-head .count { font-size: 12px; color: var(--ink-dim); }
+  .result-head .count b { color: var(--accent); font-family:'JetBrains Mono',monospace; font-size: 14px; }
+
+  .result-empty {
+    text-align: center; padding: 30px 10px; color: var(--ink-dim); font-size: 13px;
+  }
+  .result-empty .big { font-size: 30px; margin-bottom: 6px; }
+
+  .rcard {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 11px; padding: 13px 15px; margin-bottom: 9px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .rcard .loc {
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 19px;
+    background: var(--accent); color: #0c1116;
+    padding: 8px 14px; border-radius: 9px; letter-spacing: .04em;
+    min-width: 84px; text-align: center;
+  }
+  .rcard .loc.unsure { background: var(--warn); }
+  .rcard .info { flex: 1; min-width: 0; }
+  .rcard .info .code-line {
+    font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 16px;
+    margin-bottom: 3px;
+  }
+  .rcard .info .code-line .model-tag { color: var(--ink-dim); font-size: 13px; }
+  .rcard .info .code-line .num-tag { color: var(--accent-warm); }
+  .rcard .info .desc { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
+  .rcard .flag {
+    flex-shrink: 0; font-size: 10px; font-weight: 700; color: var(--warn);
+    border: 1px solid var(--warn); border-radius: 5px; padding: 2px 6px;
+  }
+  .rcard .report-btn {
+    flex-shrink: 0; font-size: 11px; font-weight: 700;
+    color: #7a6480; border: 1px solid #3d2d44;
+    background: transparent; border-radius: 6px; padding: 4px 9px;
+    cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .rcard .report-btn:hover { color: var(--warn); border-color: var(--warn); }
+  .rcard .report-btn.reported { color: var(--warn); border-color: var(--warn); background: #2d1a1a; }
+
+  /* 通報リストパネル */
+  .report-panel {
+    background: var(--panel); border: 1px solid #3d2d44;
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+  }
+  .report-panel h2 {
+    font-size: 13px; font-weight: 700; color: var(--warn);
+    letter-spacing: .04em; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .report-panel h2 .badge-cnt {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--warn); color: #1a0a0a;
+    padding: 2px 8px; border-radius: 5px; font-size: 12px;
+  }
+  .report-item {
+    background: var(--panel-2); border: 1px solid #3d2d44;
+    border-radius: 9px; padding: 10px 13px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .report-item .r-loc {
+    font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 14px;
+    background: var(--warn); color: #1a0a0a;
+    padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+  }
+  .report-item .r-info { flex: 1; min-width: 0; }
+  .report-item .r-code {
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .report-item .r-note { font-size: 11px; color: var(--ink-dim); }
+  .report-item .r-del {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--line);
+    color: var(--ink-dim); border-radius: 5px; padding: 3px 8px;
+    font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .report-item .r-del:hover { color: var(--warn); border-color: var(--warn); }
+  .report-empty-msg { font-size: 12px; color: var(--ink-dim); text-align: center; padding: 12px 0; }
+  .report-toggle {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 700; color: var(--warn);
+    margin: 10px 0 0; background: none; border: none; font-family: inherit;
+    padding: 0;
+  }
+  .report-toggle .cnt-badge {
+    background: var(--warn); color: #1a0a0a; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    padding: 1px 7px; border-radius: 99px;
+  }
+
+  .reset-btn {
+    display: block; margin: 4px auto 0;
+    background: transparent; border: 1px solid var(--line); color: var(--ink-dim);
+    border-radius: 9px; padding: 9px 20px; font-size: 13px; cursor: pointer;
+    font-family: inherit;
+  }
+  .reset-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+
+  footer {
+    margin-top: 22px; font-size: 11px; line-height: 1.8; color: #586478;
+  }
+  footer .warn { color: var(--warn); font-weight: 700; }
+
+  @media (max-width: 560px) {
+    .rcard { flex-wrap: wrap; }
+    .rcard .loc { font-size: 17px; min-width: 70px; }
+    .block { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-row">
+      <h1>部品在庫 <span class="mono">棚位置</span> 検索</h1>
+      <span class="subtitle">型番 → 数値 の2ステップで棚位置がわかる</span>
+    </div>
+    <div class="steps" id="steps">
+      <div class="step active" id="st1"><span class="badge">1</span>型番</div>
+      <div class="step-line" id="sl1"></div>
+      <div class="step" id="st2"><span class="badge">2</span>数値</div>
+      <div class="step-line" id="sl2"></div>
+      <div class="step" id="st3"><span class="badge">✓</span>棚位置</div>
+    </div>
+  </header>
+
+  <div class="block" id="block1">
+    <h2><span class="num">STEP 1</span> 型番を選択 <span class="picked" id="pick1"></span></h2>
+    <div class="opts models" id="optsModel"></div>
+  </div>
+
+  <div class="block disabled" id="block2">
+    <h2><span class="num">STEP 2</span> 数値を選択 <span class="picked" id="pick2"></span></h2>
+    <div class="opts-legend"><span class="swatch"></span>紫色 = 末尾記号（S1 / HS1 など）のバリアントあり</div>
+    <div class="opts" id="optsNum"></div>
+  </div>
+
+  <div class="block disabled" id="block3">
+    <div class="result-head">
+      <span class="label">📍 棚位置</span>
+      <span class="count"><b id="rcount">0</b> 件</span>
+    </div>
+    <div id="resultList"></div>
+  </div>
+
+  <button class="reset-btn" id="resetBtn">↺ 最初からやり直す</button>
+
+  <!-- 通報リスト -->
+  <button class="report-toggle" id="reportToggle" style="display:none">
+    ⚠ 通報リストを見る <span class="cnt-badge" id="reportToggleCnt">0</span>
+  </button>
+  <div class="report-panel" id="reportPanel" style="display:none; margin-top:14px">
+    <h2>⚠ 棚位置に誤りの可能性あり <span class="badge-cnt" id="reportPanelCnt">0</span></h2>
+    <div id="reportList"><div class="report-empty-msg">通報はありません</div></div>
+  </div>
+
+  <footer>
+    出典: 倉庫棚写真 42枚（IMG_2341〜2384）。三菱電機 エアコン・給湯機 補修部品 計314件。<br>
+    <span class="warn">⚠ 写真からの目視判読のため、文字の潰れ・ピンボケ箇所があります。</span>
+    棚位置がオレンジ色／「要確認」表示のものは判読が不確実なため、現品での確認を推奨します。<br>
+    棚位置 = エリア(B/C/D/E/F) + 列-段。例: <b>F4-3</b> = F棚 4列 3段目。
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   データ: 倉庫写真34枚から読み取った部品ラベル
+   unsure:true は棚位置の判読が不確実
+   ============================================================ */
+const DATA = [
+  { model:"M21", code:"EA2", num:"730", loc:"F4-3", desc:"" },
+  { model:"M21", code:"1G4", num:"800", loc:"F4-3", desc:"" },
+  { model:"M21", code:"1G8", num:"800", loc:"F4-4", desc:"" },
+  { model:"M21", code:"EA1", num:"883", loc:"F4-5", desc:"バルブコア R32/R410用" },
+  { model:"M21", code:"EA1", num:"992", loc:"F4-5", desc:"" },
+  { model:"M21", code:"EA1", num:"913", loc:"F4-5", desc:"" },
+  { model:"M21", code:"20A", num:"468", loc:"F3-7", desc:"受光基板 MSZ-FX406S" },
+  { model:"M21", code:"3K5", num:"468", loc:"F3-7", desc:"受光基板 MSZ-ZXV50RS" },
+  { model:"M21", code:"EA5", num:"468", loc:"F3-7", desc:"" },
+  { model:"M21", code:"EAE", num:"468", loc:"F3-7", desc:"" },
+  { model:"M21", code:"EBG", num:"468", loc:"F3-7", desc:"" },
+  { model:"M21", code:"EBH", num:"468", loc:"F3-7", desc:"", unsure:true },
+  { model:"M21", code:"L4V", num:"504", loc:"F3-8", desc:"ベアリングマウント MFZ-28RAS", unsure:true },
+  { model:"M21", code:"L9V", num:"504", loc:"F3-8", desc:"", unsure:true },
+  { model:"M21", code:"9G8", num:"509", loc:"F3-8", desc:"ベアリングマウント MSZ-J22B", unsure:true },
+  { model:"M21", code:"EA0", num:"509", loc:"F3-8", desc:"", unsure:true },
+  { model:"M21", code:"EA1", num:"590", loc:"F3-8", desc:"ミスト部品 MSZ-ZW2516", unsure:true },
+  { model:"M21", code:"EA3", num:"590", loc:"F3-8", desc:"ミスト部品 MSZ-ZW2516", unsure:true },
+  { model:"M21", code:"7K1", num:"703", loc:"F3-8", desc:"", unsure:true },
+  { model:"M21", code:"EA1", num:"619", loc:"F3-9", desc:"前面パネルクリップセット MSZ-ZW2516", unsure:true },
+  { model:"M21", code:"6V8", num:"651", loc:"F3-9", desc:"", unsure:true },
+  { model:"M21", code:"GSG", num:"451", loc:"F3-1", desc:"パワー基板" },
+  { model:"M21", code:"GOY", num:"302", loc:"F3-2", desc:"" },
+  { model:"M21", code:"HFN", num:"451", loc:"F3-2", desc:"", unsure:true },
+  { model:"M21", code:"HLP", num:"451", loc:"F4-4", desc:"", unsure:true },
+  { model:"M21", code:"ERF", num:"450", loc:"F2-5", desc:"" },
+  { model:"M21", code:"ERH", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"ERJ", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"ERS", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"ERY", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"ERZ", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"EYE", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"F55", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"F64", num:"450", loc:"F1-5", desc:"" },
+  { model:"M21", code:"F0F", num:"460", loc:"F1-6", desc:"" },
+  { model:"M21", code:"FKW", num:"460", loc:"F1-6", desc:"" },
+  { model:"M21", code:"FKY", num:"460", loc:"F1-6", desc:"" },
+  { model:"M21", code:"FL1", num:"460", loc:"F1-6", desc:"" },
+  { model:"M21", code:"GN1", num:"460", loc:"F1-7", desc:"" },
+  { model:"M21", code:"GB2", num:"460", loc:"F1-7", desc:"" },
+  { model:"M21", code:"GPL", num:"460", loc:"F1-7", desc:"" },
+  { model:"M21", code:"HCE", num:"460", loc:"F1-7", desc:"" },
+  { model:"M21", code:"EAT", num:"451", loc:"F2-1", desc:"" },
+  { model:"M21", code:"EF3", num:"451", loc:"F2-2", desc:"MXZ-40A4S 2022.05" },
+  { model:"M21", code:"EHF", num:"451", loc:"F2-2", desc:"" },
+  { model:"M21", code:"ELS", num:"451", loc:"F2-3", desc:"インバーター基板 MXZ-GMA773" },
+  { model:"M21", code:"EWA", num:"451", loc:"F2-3", desc:"" },
+  { model:"M21", code:"EWC", num:"451", loc:"F2-3", desc:"", unsure:true },
+  { model:"M21", code:"FE1", num:"451", loc:"F2-7", desc:"インバーター基板 MUCZ-G201B" },
+  { model:"M21", code:"FH2", num:"451", loc:"F2-7", desc:"インバーター基板 MUCZ-G201B" },
+  { model:"M21", code:"FLW", num:"451", loc:"F3-7", desc:"" },
+  { model:"M21", code:"FM3", num:"451", loc:"F2-7", desc:"パワー基板 MUCZ-G56205" },
+  { model:"M21", code:"FMD", num:"451", loc:"F3-7", desc:"", unsure:true },
+  { model:"M21", code:"QSE", num:"451", loc:"F2-8", desc:"" },
+  { model:"M21", code:"QSF", num:"451", loc:"F3-8", desc:"", unsure:true },
+  { model:"M21", code:"EBR", num:"450", loc:"F1-1", desc:"" },
+  { model:"M21", code:"ECD", num:"450", loc:"F1-2", desc:"マイコン基板 MLZ-222A9 2025.07" },
+  { model:"M21", code:"EDC", num:"450", loc:"F1-2", desc:"マイコン基板 MSZ-2535A5" },
+  { model:"M21", code:"EDD", num:"450", loc:"F1-2", desc:"", unsure:true },
+  { model:"M21", code:"AGW", num:"426", loc:"F1-2", desc:"", unsure:true },
+  { model:"M21", code:"EG0", num:"426", loc:"E4-7", desc:"" },
+  { model:"M21", code:"EG1", num:"426", loc:"E4-7", desc:"リモコン MSZ-GV2522" },
+  { model:"M21", code:"EGE", num:"426", loc:"E4-7", desc:"リモコン MSZ-SV2222" },
+  { model:"M21", code:"PPP", num:"426", loc:"E4-7", desc:"表示パネル MSZ-K220" },
+  { model:"M21", code:"EBD", num:"424", loc:"E4-7", desc:"", unsure:true },
+  { model:"M21", code:"9T4", num:"440", loc:"E4-7", desc:"" },
+  { model:"M21", code:"EA3", num:"440", loc:"E4-8", desc:"" },
+  { model:"M21", code:"EAM", num:"440", loc:"E4-8", desc:"" },
+  { model:"M21", code:"EB1", num:"302", loc:"E1-8", desc:"" },
+  { model:"M21", code:"EB3", num:"302", loc:"E1-8", desc:"" },
+  { model:"M21", code:"EB5", num:"302", loc:"E1-9", desc:"" },
+  { model:"M21", code:"EB4", num:"302", loc:"E1-11", desc:"" },
+  { model:"M21", code:"EB6", num:"302", loc:"E1-11", desc:"" },
+  { model:"M21", code:"EAZ", num:"424", loc:"E3-6", desc:"" },
+  { model:"M21", code:"EB0", num:"424", loc:"E3-6", desc:"パワー基板 MSZ-GC220" },
+  { model:"M21", code:"EBA", num:"424", loc:"E3-6", desc:"パワー基板 MSZ-GC220" },
+  { model:"M21", code:"EB2", num:"424", loc:"E3-6", desc:"パワー基板 MSZ-GE221A 2023.03" },
+  { model:"M21", code:"EB6", num:"424", loc:"E3-6", desc:"パワー基板 MSZ-GV2218-W 2019.12" },
+  { model:"M21", code:"EBD", num:"424", loc:"E3-6", desc:"パワー基板 MSZ-GV2220 2023.05" },
+  { model:"M21", code:"EC7", num:"424", loc:"E3-7", desc:"" },
+  { model:"M21", code:"ECM", num:"424", loc:"E3-7", desc:"" },
+  { model:"M21", code:"L2Y", num:"424", loc:"E3-7", desc:"パワー基板 MUZ-LZV5016" },
+  { model:"M21", code:"LZY", num:"424", loc:"E3-7", desc:"", unsure:true },
+  { model:"M21", code:"EAA", num:"303", loc:"E3-1", desc:"" },
+  { model:"M21", code:"EA0", num:"303", loc:"E1-10", desc:"" },
+  { model:"M21", code:"EAC", num:"303", loc:"E3-2", desc:"" },
+  { model:"M21", code:"TOT", num:"303", loc:"E3-2", desc:"ドレンポンプ MLZ-RX2A" },
+  { model:"M21", code:"5V8", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-GE2520-W" },
+  { model:"M21", code:"8V1", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-GV2520-W" },
+  { model:"M21", code:"EA0", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-ZW2516-W" },
+  { model:"M21", code:"EA7", num:"305", loc:"E3-3", desc:"室温サーミスタ" },
+  { model:"M21", code:"EA8", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-L2816-W" },
+  { model:"M21", code:"EAH", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-ZW2516-W" },
+  { model:"M21", code:"EAK", num:"305", loc:"E3-3", desc:"室温サーミスタ" },
+  { model:"M21", code:"EAL", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-GE3620-W" },
+  { model:"M21", code:"EB7", num:"305", loc:"E3-3", desc:"室温サーミスタ MSZ-ZW2516-W" },
+  { model:"M21", code:"EBL", num:"305", loc:"E3-3", desc:"上下ルーバーモータ MSZ-GM560S" },
+  { model:"M21", code:"EBM", num:"305", loc:"E3-3", desc:"上下ルーバーモータ" },
+  { model:"M21", code:"EBN", num:"305", loc:"E3-3", desc:"上下ルーバーモータ" },
+  { model:"M21", code:"EBY", num:"305", loc:"E3-3", desc:"上下ルーバーモータ MSZ-GE2221" },
+  { model:"M21", code:"7V7", num:"306", loc:"E3-3", desc:"ベーンモータ MFZ-28RAS" },
+  { model:"M21", code:"EAL", num:"306", loc:"E3-3", desc:"" },
+  { model:"M21", code:"L4V", num:"306", loc:"E3-3", desc:"ベーンモータ MFZ-28RAS" },
+  { model:"M20", code:"KA0", num:"712", loc:"D3-7", desc:"キャスタースペーサー・キャスター MR-G40J", unsure:true },
+  { model:"M20", code:"YG9", num:"713", loc:"D3-7", desc:"クッションセット MR-WX61Y-P 2019.11（取消線あり）", unsure:true },
+  { model:"M20", code:"KA6", num:"745", loc:"D3-7", desc:"ドアストッパー(右) MR-S40J 2019.05", unsure:true },
+  { model:"M20", code:"KW0", num:"745", loc:"D3-7", desc:"ドアストッパー(左) MR-A41M", unsure:true },
+  { model:"M20", code:"KZ0", num:"745", loc:"D3-7", desc:"ドアパッキン-R MR-C34S", unsure:true },
+  { model:"M20", code:"YU3", num:"745", loc:"D3-7", desc:"", unsure:true },
+  { model:"M20", code:"YV8", num:"745", loc:"D3-7", desc:"ドアストッパー MR-CG33ET", unsure:true },
+  { model:"M20", code:"KJ6", num:"798", loc:"D3-7", desc:"", unsure:true },
+  { model:"M20", code:"TA3", num:"798", loc:"D3-7", desc:"", unsure:true },
+  { model:"M20", code:"TK4", num:"798", loc:"D3-7", desc:"", unsure:true },
+  { model:"M20", code:"LA0", num:"835", loc:"D3-7", desc:"（取消線あり）", unsure:true },
+  { model:"M20", code:"TJ9", num:"835", loc:"D3-7", desc:"", unsure:true },
+  { model:"M20", code:"YJ4", num:"953", loc:"D3-8", desc:"ヒンジ MR-P15F 2017.09", unsure:true },
+  { model:"M20", code:"YK9", num:"956", loc:"D3-8", desc:"風路スイッチ MR-S40A 2018.08（取消線あり）", unsure:true },
+  { model:"M20", code:"YV8", num:"956", loc:"D3-8", desc:"前面パネル MR-CG33ET（取消線あり）", unsure:true },
+  { model:"M20", code:"TN3", num:"957", loc:"D3-8", desc:"シール部材セット MR-G40A", unsure:true },
+  { model:"M20", code:"YV8", num:"957", loc:"D3-8", desc:"前面パネル", unsure:true },
+  { model:"M20", code:"YJ4", num:"469", loc:"D3-1", desc:"" },
+  { model:"M20", code:"KL0", num:"520", loc:"D3-2", desc:"製氷タンク MR-WX5", unsure:true },
+  { model:"M20", code:"KJ5", num:"520", loc:"D3-2", desc:"", unsure:true },
+  { model:"M20", code:"ZN2", num:"350", loc:"D2-5", desc:"自動製氷機 AUTOMATIC ICE MAKER" },
+  { model:"M20", code:"TW0", num:"423", loc:"D2-5", desc:"", unsure:true },
+  { model:"M20", code:"YE1", num:"420", loc:"D2-5", desc:"", unsure:true },
+  { model:"M20", code:"KW4", num:"360", loc:"D2-6", desc:"", unsure:true },
+  { model:"M20", code:"LG0", num:"360", loc:"D2-6", desc:"", unsure:true },
+  { model:"M20", code:"LG0", num:"362", loc:"D2-6", desc:"", unsure:true },
+  { model:"M21", code:"1L3", num:"300", loc:"E1-1", desc:"ファンモーター(上) MFZ-56RAS" },
+  { model:"M21", code:"1L9", num:"300", loc:"E1-1", desc:"" },
+  { model:"M21", code:"EBR", num:"300", loc:"E1-2", desc:"モーター MFZ-28RAS" },
+  { model:"M21", code:"EBS", num:"300", loc:"E1-2", desc:"" },
+  { model:"M21", code:"EBP", num:"300", loc:"E1-1", desc:"" },
+  { model:"M20", code:"HH1", num:"427", loc:"D2-8", desc:"123棚（後）MR-C34A 2020.05", unsure:true },
+  { model:"M20", code:"HH1", num:"428", loc:"D2-8", desc:"シェルメリー6 モ MR-CU37E", unsure:true },
+  { model:"M20", code:"WK3", num:"452", loc:"D2-8", desc:"", unsure:true },
+  { model:"M20", code:"TN1", num:"520", loc:"D2-9", desc:"", unsure:true },
+  { model:"M20", code:"WK5", num:"452", loc:"D2-9", desc:"", unsure:true },
+  { model:"M20", code:"CB2", num:"350", loc:"D1-2", desc:"自動製氷機" },
+  { model:"M20", code:"CV5", num:"350", loc:"D1-4", desc:"自動製氷機 MR-MZ54CH-W", unsure:true },
+  { model:"M20", code:"CV6", num:"350", loc:"D1-4", desc:"自動製氷機", unsure:true },
+  { model:"M20", code:"TV2", num:"350", loc:"D1-8", desc:"自動製氷機 MR-A41R" },
+  { model:"M20", code:"TWB", num:"350", loc:"D1-8", desc:"", unsure:true },
+  { model:"M20", code:"ZB3", num:"350", loc:"D1-9", desc:"自動製氷機 AUTOMATIC ICE MAKER" },
+  { model:"M20", code:"ZB9", num:"350", loc:"D2-8", desc:"", unsure:true },
+  { model:"M20", code:"ZC3", num:"350", loc:"D1-9", desc:"自動製氷機", unsure:true },
+
+  /* ===== 追加: 倉庫写真 IMG_2361〜2374（B棚・C棚エリア）===== */
+  // --- IMG_2361 (B2棚) ---
+  { model:"M16", code:"147", num:"410S", loc:"B2-3", desc:"給水ベルブユニットセット EW-CP410M 2021.12" },
+  { model:"M16", code:"190", num:"430H", loc:"B2-3", desc:"", unsure:true },
+  { model:"M16", code:"188", num:"430K", loc:"B2-3", desc:"", unsure:true },
+  { model:"M16", code:"149", num:"440", loc:"B2-3", desc:"", unsure:true },
+  { model:"M16", code:"151", num:"688M", loc:"B2-4", desc:"制御基板 EW-DP45B" },
+  { model:"M16", code:"162", num:"688M", loc:"B2-4", desc:"制御基板 EW-45R1S" },
+  { model:"M16", code:"166", num:"688M", loc:"B2-4", desc:"", unsure:true },
+  { model:"M16", code:"185", num:"941S", loc:"B2-4", desc:"", unsure:true },
+  { model:"M16", code:"192", num:"941S", loc:"B2-4", desc:"", unsure:true },
+
+  // --- IMG_2362 (B3棚) ---
+  { model:"M17", code:"C61", num:"500S", loc:"B3-2", desc:"ヒーター4本 SR-3756 2020.12" },
+
+  // --- IMG_2363 (B3棚) ---
+  { model:"M17", code:"D02", num:"522S2", loc:"B3-6", desc:"" },
+  { model:"M17", code:"F11", num:"522", loc:"B3-6", desc:"", unsure:true },
+  { model:"M17", code:"M30", num:"522PS1", loc:"B3-7", desc:"パワー基板 SRT-HP37W7" },
+  { model:"M17", code:"M9F", num:"522S1", loc:"B3-7", desc:"", unsure:true },
+  { model:"M17", code:"MF0", num:"522", loc:"B3-8", desc:"" },
+  { model:"M17", code:"MF1", num:"522HS1", loc:"B3-8", desc:"", unsure:true },
+
+  // --- IMG_2364 (B2棚) ---
+  { model:"M17", code:"H87", num:"390TS1", loc:"B2-9", desc:"循環ポンプ SRT-HPT130WD2" },
+  { model:"M17", code:"H77", num:"390HS1", loc:"B2-9", desc:"給水ポンプ SRT-HP46W1" },
+  { model:"M17", code:"MF0", num:"390AS1", loc:"B2-10", desc:"風呂ポンプ SRT-374B 1812" },
+  { model:"M17", code:"MR9", num:"390S1", loc:"B2-10", desc:"循環ポンプ SRT-P3730 2043" },
+  { model:"M17", code:"NNC", num:"390", loc:"B2-10", desc:"" },
+
+  // --- IMG_2365 (B4棚) ---
+  { model:"M17", code:"D45", num:"542K", loc:"B4-3", desc:"残温センサー SRG-40S3 2019.09" },
+  { model:"M17", code:"H41", num:"542A", loc:"B4-3", desc:"サーミスタTB1 SRT-HPT46WS3" },
+  { model:"M17", code:"H41", num:"542B", loc:"B4-3", desc:"サーミスタTB2 SRT-HPT46WS3" },
+  { model:"M17", code:"H87", num:"542HS1", loc:"B4-3", desc:"残温センサ SRT-HPU45A2" },
+  { model:"M17", code:"H87", num:"542K", loc:"B4-3", desc:"給水サーミスタ SRT-HPU45A1 2019.09" },
+  { model:"M17", code:"L00", num:"542K", loc:"B4-3", desc:"給水/排水温度サーミスタ SRT-HPU45A2" },
+  { model:"M17", code:"L00", num:"542S", loc:"B4-3", desc:"サーミスタ SRT-173" },
+  { model:"M17", code:"L71", num:"542", loc:"B4-3", desc:"" },
+  { model:"M17", code:"L71", num:"542H", loc:"B4-3", desc:"" },
+  { model:"M17", code:"L71", num:"542K", loc:"B4-3", desc:"" },
+  { model:"M17", code:"C45", num:"545", loc:"B4-3", desc:"", unsure:true },
+  { model:"M17", code:"B62", num:"546", loc:"B4-3", desc:"", unsure:true },
+  { model:"M17", code:"B66", num:"546S", loc:"B4-3", desc:"", unsure:true },
+
+  // --- IMG_2366 (B4棚) ---
+  { model:"M17", code:"N9G", num:"522S1", loc:"B4-2", desc:"基板組立 SRT-W37D 2021.07" },
+  { model:"M17", code:"NNC", num:"522", loc:"B4-2", desc:"基板組立 SRT-37W04" },
+
+  // --- IMG_2367 (B4棚) ---
+  { model:"M17", code:"D50", num:"632S1", loc:"B4-8", desc:"給水口電磁弁 SRT-68D 2021.10" },
+  { model:"M17", code:"H73", num:"632", loc:"B4-8", desc:"風呂用電磁弁 SRT-HP46WS1 2019.09" },
+  { model:"M17", code:"L71", num:"632", loc:"B4-8", desc:"風呂給湯電磁弁 SRT-HP46W4" },
+  { model:"M17", code:"MF0", num:"632", loc:"B4-8", desc:"風呂電磁弁 SRT-374" },
+  { model:"M17", code:"RA8", num:"632AS1", loc:"B4-8", desc:"ふろ給湯電磁弁 SRT-PT37W5" },
+  { model:"M10", code:"H87", num:"360", loc:"B4-9", desc:"", unsure:true },
+
+  // --- IMG_2368 (C1棚) ---
+  { model:"M17", code:"RMJ", num:"644", loc:"C1-7", desc:"切替弁 SRT-クリアタフ3L仕様 2026.02" },
+  { model:"M17", code:"MR9", num:"645S1", loc:"C1-7", desc:"湯はり切替弁 SRT-EE38W7 2018.11" },
+  { model:"M17", code:"NM4", num:"645S1", loc:"C1-7", desc:"出湯切替弁 SRT-W302D 2026.01" },
+  { model:"M17", code:"N10", num:"644S1", loc:"C1-7", desc:"" },
+  { model:"M17", code:"R42", num:"646", loc:"C1-8", desc:"" },
+  { model:"M17", code:"67C", num:"658S1", loc:"C1-8", desc:"リモコン RMC-9 SRG-151E 2020.08" },
+
+  // --- IMG_2369 (C2棚) ---
+  { model:"M10", code:"H46", num:"", loc:"C2-1", desc:"", unsure:true },
+  { model:"M17", code:"NMN", num:"761", loc:"C2-2", desc:"" },
+  { model:"M17", code:"NN4", num:"761S1", loc:"C2-2", desc:"減圧弁セット SRT-201E 2023.06" },
+  { model:"M17", code:"NN5", num:"761S2", loc:"C2-3", desc:"" },
+  { model:"M17", code:"NNS", num:"761S1", loc:"C2-3", desc:"減圧弁セット SRT-J46WD5 2023.06" },
+
+  // --- IMG_2370 (C2棚) ---
+  { model:"M17", code:"L00", num:"822J", loc:"C2-5", desc:"" },
+  { model:"M17", code:"L00", num:"822T", loc:"C2-5", desc:"（取消線あり）" },
+  { model:"M17", code:"L52", num:"822S", loc:"C2-5", desc:"" },
+  { model:"M17", code:"NNC", num:"826HS1", loc:"C2-5", desc:"6.5m SRT-J37WD3 2019.10" },
+  { model:"M17", code:"F12", num:"827AS1", loc:"C2-6", desc:"バイブレット140 SRT-HPU45A1-BS" },
+  { model:"M17", code:"L42", num:"827V", loc:"C2-6", desc:"" },
+  { model:"M17", code:"H87", num:"829VS1", loc:"C2-6", desc:"", unsure:true },
+  { model:"M17", code:"NF4", num:"833H", loc:"C2-6", desc:"チャージパイプセット SRT-HP46WS1" },
+  { model:"M17", code:"RAA", num:"834H", loc:"C2-6", desc:"チャージパイプセット SRT-LU45BD1 2026.03" },
+
+  // --- IMG_2371 (B3棚) ---
+  { model:"M17", code:"C61", num:"500S", loc:"B3-2", desc:"" },
+
+  // --- IMG_2372 (B4棚) ---
+  { model:"M17", code:"N9G", num:"522S1", loc:"B4-2", desc:"" },
+  { model:"M17", code:"NNC", num:"522", loc:"B4-2", desc:"" },
+
+  // --- IMG_2373 (C3棚) ---
+  { model:"M20", code:"YU3", num:"320", loc:"C3-6", desc:"ファンモータ MR-P13A 2016.08" },
+  { model:"M20", code:"TK7", num:"320", loc:"C3-6", desc:"", unsure:true },
+  { model:"M20", code:"TK8", num:"320", loc:"C3-6", desc:"", unsure:true },
+  { model:"M20", code:"TT0", num:"320", loc:"C3-6", desc:"", unsure:true },
+  { model:"M20", code:"TT1", num:"320", loc:"C3-6", desc:"", unsure:true },
+  { model:"M20", code:"VE1", num:"320", loc:"C3-6", desc:"", unsure:true },
+  { model:"M20", code:"YV9", num:"320", loc:"C3-6", desc:"モータ MR-CX33A-W 2016.08" },
+  { model:"M20", code:"NA0", num:"321", loc:"C3-6", desc:"ボックスファン MR-G47N" },
+  { model:"M20", code:"YS3", num:"321", loc:"C3-7", desc:"", unsure:true },
+  { model:"M20", code:"ZF9", num:"321", loc:"C3-7", desc:"" },
+  { model:"M20", code:"CF1", num:"327", loc:"C3-7", desc:"給水ポンプモーター MR-C33F-W 2022.06" },
+  { model:"M20", code:"CV5", num:"327", loc:"C3-7", desc:"給水ポンプモーター MR-MC54M-W 2021.10" },
+  { model:"M20", code:"VJ3", num:"327", loc:"C3-7", desc:"給水ポンプモーター MR-R52T 2021.10" },
+  { model:"M20", code:"YV8", num:"327", loc:"C3-7", desc:"キョウスイポンプモータ MR-CX33F 2022.01" },
+
+  // --- IMG_2374 (C3棚) ---
+  { model:"M20", code:"KN1", num:"050", loc:"C3-1", desc:"ヒーター MR-A41J" },
+  { model:"M20", code:"DY6", num:"050", loc:"C3-2", desc:"", unsure:true },
+  { model:"M20", code:"TW8", num:"050", loc:"C3-3", desc:"ヒーター板 MR-B57R-W", unsure:true },
+  { model:"M20", code:"YJ2", num:"050", loc:"C3-3", desc:"ヒーター板 MR-R47Z" },
+  { model:"M20", code:"ZF9", num:"050", loc:"C3-4", desc:"" },
+
+
+  /* ===== 追加: 倉庫写真 IMG_2375〜2378（B棚エリア追加分）===== */
+  // --- IMG_2378 (B3-4 / B3-5 / B3-6) ---
+  { model:"M17", code:"C64", num:"501S",  loc:"B3-4", desc:"ヒーター4K SRT-375WD 2020.12" },
+  { model:"M17", code:"G13", num:"505",   loc:"B3-4", desc:"（取消線あり）" },
+  { model:"M17", code:"L00", num:"505S1", loc:"B3-4", desc:"ドア・パッキン・ボルト SRT-W2" },
+  { model:"M17", code:"A05", num:"510",   loc:"B3-4", desc:"" },
+  { model:"M17", code:"B88", num:"510S",  loc:"B3-4", desc:"" },
+  { model:"M17", code:"B89", num:"510S1", loc:"B3-4", desc:"切替弁 SRT-171E" },
+  { model:"M17", code:"C48", num:"510",   loc:"B3-4", desc:"" },
+  { model:"M17", code:"C51", num:"510",   loc:"B3-4", desc:"" },
+  { model:"M17", code:"67C", num:"502",   loc:"B3-5", desc:"リモコン SR-305B" },
+  { model:"M17", code:"D92", num:"622S2", loc:"B3-6", desc:"" },
+  // --- IMG_2377 (B2-6) ---
+  { model:"M17", code:"L9Y", num:"249H",  loc:"B2-6", desc:"マイクロスイッチ SRT-ESU4580A4" },
+  // --- IMG_2376 (B4-4 / B4-5) ---
+  { model:"M17", code:"N36", num:"542K",   loc:"B4-4", desc:"入水サーミスタ SRT-HPU80AF7 2025.08" },
+  { model:"M17", code:"N36", num:"542KS1", loc:"B4-4", desc:"入水サーミスタ SRT-HPU80A7 2025.08" },
+  { model:"M17", code:"N6V", num:"542K",   loc:"B4-4", desc:"入水サーミスタ SRT-HPV42A0 2025.08" },
+  { model:"M17", code:"NC4", num:"542H",   loc:"B4-4", desc:"取出しサーミスタ SRT-MU40-S 2025.01" },
+  { model:"M17", code:"NC4", num:"542S1",  loc:"B4-4", desc:"" },
+  { model:"M17", code:"C45", num:"545",    loc:"B4-4", desc:"" },
+  { model:"M17", code:"C55", num:"545",    loc:"B4-4", desc:"" },
+  { model:"M17", code:"B62", num:"546",    loc:"B4-4", desc:"" },
+  { model:"M17", code:"B62", num:"546S",   loc:"B4-4", desc:"" },
+  { model:"M17", code:"D44", num:"549",    loc:"B4-5", desc:"給湯流量センサ SRT-376BCF-B1 2020.04" },
+  { model:"M17", code:"H11", num:"549",    loc:"B4-5", desc:"循環サーミスタ SRT-HP30WD1" },
+  { model:"M17", code:"L00", num:"549",    loc:"B4-5", desc:"流量センサー SRT-HPT37W2 2019.08" },
+  { model:"M17", code:"MF0", num:"549",    loc:"B4-5", desc:"給湯流量センサ SRT-HP37W4 2020.05" },
+  { model:"M17", code:"L71", num:"557S",   loc:"B4-5", desc:"水栓モノ SRT-37F2" },
+  { model:"M17", code:"NNC", num:"557",    loc:"B4-5", desc:"給停フロースイッチ SRT-J37W05 2022.10" },
+  { model:"M17", code:"R64", num:"557",    loc:"B4-5", desc:"フロースイッチ SRT-SK375 2026.01" },
+  { model:"M17", code:"F6N", num:"623S2",  loc:"B4-5", desc:"" },
+  { model:"M17", code:"N10", num:"623S1",  loc:"B4-5", desc:"製品注記 SR-171E" },
+  // --- IMG_2375 (B4-6) ---
+  { model:"M17", code:"B89", num:"570S1",  loc:"B4-6", desc:"ブレ SR-460G（取消線あり）" },
+  { model:"M17", code:"C45", num:"570S",   loc:"B4-6", desc:"ブレ SRG-2518" },
+  { model:"M17", code:"C48", num:"570S",   loc:"B4-6", desc:"" },
+  { model:"M17", code:"F00", num:"577",    loc:"B4-6", desc:"水位センサー SRT-J37W3 2024.11" },
+  { model:"M17", code:"NNS", num:"577",    loc:"B4-6", desc:"SRT-J48W05 2022.10" },
+  { model:"M17", code:"NNC", num:"590E",   loc:"B4-6", desc:"リード線S2 SRT-J37W05 2024.10" },
+  { model:"M17", code:"F6N", num:"623S2",  loc:"B4-6", desc:"" },
+  { model:"M17", code:"N10", num:"623S1",  loc:"B4-6", desc:"製品注記 SR-171E" },
+
+  /* ===== 追加: IMG_2380（D4棚）===== */
+  // 上段棚札（段番号が写真で確認できないため要確認）
+  { model:"M21", code:"EAF", num:"040", loc:"D4-2", desc:"" },
+  { model:"M21", code:"L9V", num:"040", loc:"D4-2", desc:"ベーン MLZ-RX25J" },
+  { model:"M21", code:"L9W", num:"040", loc:"D4-2", desc:"ベーン MLZ-W40GS" },
+  { model:"M21", code:"TOT", num:"040", loc:"D4-2", desc:"ベーン MSZ-22PXS" },
+  { model:"M21", code:"7V1", num:"041", loc:"D4-2", desc:"" },
+  { model:"M21", code:"7V7", num:"041", loc:"D4-2", desc:"上下 MSZ-GM5606-W 2025.11" },
+  // 中段棚札
+  { model:"M21", code:"EAK", num:"041", loc:"D4-1", desc:"ベーンW MSZ-GV2216-W" },
+  // 下段棚札
+  { model:"M21", code:"EAC", num:"047", loc:"D4-1", desc:"スイッチ 上下 MSZ-ZW2220-W 2022.11" },
+  { model:"M21", code:"EAM", num:"047", loc:"D4-1", desc:"スイッチ MSZ-GV2220-W 2025.08" },
+  { model:"M21", code:"ECH", num:"047", loc:"D4-1", desc:"カードスライダー MSZ-R2220-W" },
+  { model:"M21", code:"EC2", num:"047", loc:"D4-1", desc:"切りスイッチ(上下) MSZ-ZW225-W 2019.07" },
+  { model:"M21", code:"EC3", num:"047", loc:"D4-1", desc:"切りスイッチ(上下) MSZ-ZW221-W 2019.07" },
+  { model:"M21", code:"EC4", num:"047", loc:"D4-1", desc:"切りスイッチ(上下) MSZ-ZW224-W 2019.07" },
+  { model:"M21", code:"EC5", num:"047", loc:"D4-1", desc:"切りスイッチ(上) MSZ-ZW225-W 2019.07" },
+  { model:"M21", code:"EC6", num:"047", loc:"D4-1", desc:"切りスイッチ(上下) MSZ-L2716-W 2019.07" },
+  { model:"M21", code:"0A8", num:"049", loc:"D4-1", desc:"シャーフ切換 M40-6499" },
+  { model:"M21", code:"SES", num:"071", loc:"D4-1", desc:"ベーンリーフ M4Z-40", unsure:true },
+
+  /* ===== 追加: IMG_2382〜2384（D4棚・E1棚段番号確定）===== */
+  // IMG_2382 D4-3（フィルター類・平板袋入り）
+  { model:"M21", code:"5K1", num:"100", loc:"D4-3", desc:"フィルター MSZ-ZW229-W" },
+  { model:"M21", code:"69A", num:"100", loc:"D4-3", desc:"フィルター", unsure:true },
+  { model:"M21", code:"4G3", num:"100", loc:"D4-3", desc:"フィルター", unsure:true },
+  { model:"M21", code:"8G5", num:"100", loc:"D4-3", desc:"フィルター MSZ-GV294", unsure:true },
+  { model:"M21", code:"6K9", num:"100", loc:"D4-3", desc:"フィルター MSZ-ZW223-W" },
+  { model:"M21", code:"EA0", num:"100", loc:"D4-3", desc:"フィルター MSZ-ZW105 RBB19" },
+  { model:"M21", code:"EA1", num:"100", loc:"D4-3", desc:"" },
+  { model:"M21", code:"EAK", num:"100", loc:"D4-3", desc:"" },
+  { model:"M21", code:"EAR", num:"100", loc:"D4-3", desc:"フィルター MSZ-P2390486" },
+  { model:"M21", code:"EAT", num:"100", loc:"D4-3", desc:"" },
+  { model:"M21", code:"EBW", num:"100", loc:"D4-3", desc:"" },
+  // IMG_2383 D4-8（取付ナット・フィルターセット・止め具など）
+  { model:"M21", code:"EBM", num:"100", loc:"D4-8", desc:"取付ナット MSZ-FX401-W 2021.10" },
+  { model:"M21", code:"EBW", num:"100", loc:"D4-8", desc:"連送ツノナット MSZ-ZZ2210GS" },
+  { model:"M21", code:"EA0", num:"107", loc:"D4-8", desc:"フィルターセット MSZ-FZA6163" },
+  { model:"M21", code:"EA0", num:"162", loc:"D4-8", desc:"エアーホルスリ MSZ-2226-W" },
+  { model:"M21", code:"0A8", num:"250", loc:"D4-8", desc:"バネ取り付けホルダー MAC-M63FT 2020.01" },
+  { model:"M21", code:"EA9", num:"250", loc:"D4-8", desc:"MAC 止め具 2023.08" },
+  { model:"M21", code:"N8L", num:"256", loc:"D4-8", desc:"フォルトーマ MSZ-J098" },
+  { model:"M21", code:"EA1", num:"256", loc:"D4-8", desc:"" },
+  { model:"M21", code:"1L3", num:"300", loc:"D4-9", desc:"" },
+  { model:"M21", code:"1LW", num:"300", loc:"D4-9", desc:"", unsure:true },
+  { model:"M21", code:"1L2", num:"320", loc:"D4-9", desc:"", unsure:true },
+  { model:"M21", code:"EBP", num:"300", loc:"D4-9", desc:"" },
+
+  /* ===== 追加: C4棚（M20 339番台）===== */
+  { model:"M20", code:"EB2", num:"339", loc:"C4-2", desc:"" },
+  { model:"M20", code:"EB4", num:"339", loc:"C4-2", desc:"", unsure:true },
+  { model:"M20", code:"EB6", num:"339", loc:"C4-3", desc:"", unsure:true },
+  { model:"M20", code:"EC1", num:"339", loc:"C4-3", desc:"" },
+  { model:"M20", code:"EC3", num:"339", loc:"C4-3", desc:"" },
+  { model:"M20", code:"ZT1", num:"339", loc:"C4-8", desc:"" },
+];
+
+/* ============================================================
+   状態とロジック（2ステップ）
+   ============================================================ */
+const state = { model: null, num: null };
+
+const el = {
+  block2: document.getElementById('block2'),
+  block3: document.getElementById('block3'),
+  optsModel: document.getElementById('optsModel'),
+  optsNum: document.getElementById('optsNum'),
+  resultList: document.getElementById('resultList'),
+  rcount: document.getElementById('rcount'),
+  pick1: document.getElementById('pick1'),
+  pick2: document.getElementById('pick2'),
+  st1: document.getElementById('st1'),
+  st2: document.getElementById('st2'),
+  st3: document.getElementById('st3'),
+  sl1: document.getElementById('sl1'),
+  sl2: document.getElementById('sl2'),
+  resetBtn: document.getElementById('resetBtn'),
+};
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+function uniqSorted(arr){
+  return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
+}
+function hasSuffix(num){
+  // 数値に末尾記号（数字3桁以降に英字等）があるか判定
+  return /^\d{2,3}[^\d]/.test((num||'').trim()) || /^\d{2,3}$/.test((num||'').trim()) === false && /^\d/.test((num||'').trim());
+}
+function numHasSuffix(num){
+  const s = (num||'').trim();
+  return /^\d{2,3}.+/.test(s) && !/^\d+$/.test(s);
+}
+
+/* --- STEP 1: 型番ボタン生成 --- */
+function buildModels(){
+  const models = uniqSorted(DATA.map(d=>d.model));
+  el.optsModel.innerHTML = models.map(m=>{
+    const cnt = DATA.filter(d=>d.model===m).length;
+    return `<button class="opt" data-v="${m}">${m}<span class="cnt">${cnt}件</span></button>`;
+  }).join('');
+  el.optsModel.querySelectorAll('.opt').forEach(b=>{
+    b.addEventListener('click', ()=>selectModel(b.dataset.v));
+  });
+}
+
+/* --- 型番選択 --- */
+function selectModel(model){
+  state.model = model; state.num = null;
+  markOn(el.optsModel, model);
+  el.pick1.textContent = model;
+  el.pick2.textContent = '';
+  buildNums();
+  el.block2.classList.remove('disabled');
+  el.block3.classList.add('disabled');
+  el.resultList.innerHTML = ''; el.rcount.textContent = '0';
+  updateSteps();
+}
+
+/* --- 数値の頭3桁を取り出す --- */
+function numBase(num){
+  const m = /^(\d{2,3})/.exec((num||'').trim());
+  return m ? m[1] : num;
+}
+
+/* --- STEP 2: 数値ボタン生成（頭3桁で統一、バリアント複数あれば紫）--- */
+function buildNums(){
+  const bases = uniqSorted(
+    DATA.filter(d=>d.model===state.model).map(d=>numBase(d.num))
+  );
+  el.optsNum.innerHTML = bases.map(b=>{
+    const matched = DATA.filter(d=>d.model===state.model && numBase(d.num)===b);
+    const cnt = matched.length;
+    const hasVariants = matched.some(d=>d.num!==b);  // 末尾記号バリアントあり
+    const cls = hasVariants ? 'opt has-suffix' : 'opt';
+    return `<button class="${cls}" data-v="${b}">${b}<span class="cnt">${cnt}</span></button>`;
+  }).join('');
+  el.optsNum.querySelectorAll('.opt').forEach(b=>{
+    b.addEventListener('click', ()=>selectNum(b.dataset.v));
+  });
+}
+
+/* --- 数値選択 → 結果表示 --- */
+function selectNum(num){
+  state.num = num;
+  markOn(el.optsNum, num);
+  el.pick2.textContent = num;
+  el.block3.classList.remove('disabled');
+  showResult();
+  updateSteps();
+  el.block3.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* --- 結果表示（頭3桁が一致するものを全て表示）--- */
+function showResult(){
+  const rows = DATA.filter(d=>d.model===state.model && numBase(d.num)===state.num);
+  rows.sort((a,b)=>a.loc.localeCompare(b.loc,'en',{numeric:true}));
+  el.rcount.textContent = rows.length;
+  if(!rows.length){
+    el.resultList.innerHTML =
+      `<div class="result-empty"><div class="big">🔍</div>該当する部品がありません</div>`;
+    return;
+  }
+  el.resultList.innerHTML = rows.map((r,i)=>{
+    const locClass = r.unsure ? 'loc unsure' : 'loc';
+    const flag = r.unsure ? '<span class="flag">要確認</span>' : '';
+    const desc = r.desc
+      ? `<div class="desc">${escapeHtml(r.desc)}</div>`
+      : `<div class="desc">—</div>`;
+    const rkey = reportKey(r);
+    const isReported = (_reports||[]).some(x=>reportKey(x)===rkey);
+    const rbtn = `<button class="report-btn${isReported?' reported':''}" data-idx="${i}" onclick="toggleReport(${i})">
+      ${isReported ? '⚠ 通報済' : '⚑ 通報'}
+    </button>`;
+    return `<div class="rcard" data-idx="${i}">
+      <div class="${locClass}">${escapeHtml(r.loc)}</div>
+      <div class="info">
+        <div class="code-line">
+          <span class="model-tag">${escapeHtml(r.model)}</span>
+          ${escapeHtml(r.code)}
+          <span class="num-tag">${escapeHtml(r.num)}</span>
+        </div>
+        ${desc}
+      </div>
+      ${flag}
+      ${rbtn}
+    </div>`;
+  }).join('');
+  // 現在の結果行をキャッシュ（通報用）
+  window._currentRows = rows;
+}
+
+/* ============================================================
+   通報機能: Google スプレッドシート連携（GAS経由）
+   ★ デプロイ後、下記 GAS_URL を実際のURLに書き換えてください
+   ============================================================ */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxzXzeyR5xXcQSN-f0nG4HFbFbrf8Rgc1A03w-w5osFHEgC3jNJwggVvA3p7tw9MFl9/exec';
+
+// 通報データのキャッシュ（ページ内）
+let _reports = null;
+let _reportLoading = false;
+
+function reportKey(r){
+  return `${r.model}|${r.code}|${r.num}|${r.loc}`;
+}
+
+/* GASからリスト取得 */
+async function fetchReports(){
+  if(GAS_URL.startsWith('ここに')) return [];
+  try {
+    const res = await fetch(GAS_URL + '?action=list');
+    const json = await res.json();
+    return json.ok ? json.reports : [];
+  } catch(e){ return []; }
+}
+
+/* 通報追加 */
+async function addReport(r){
+  try {
+    const params = new URLSearchParams({
+      action:'add', model:r.model, code:r.code,
+      num:r.num, loc:r.loc, desc:r.desc||''
+    });
+    const res = await fetch(GAS_URL + '?' + params);
+    const json = await res.json();
+    return json.ok ? json.id : null;
+  } catch(e){ return null; }
+}
+
+/* 通報削除 */
+async function removeReport(id){
+  try {
+    const params = new URLSearchParams({ action:'delete', id });
+    await fetch(GAS_URL + '?' + params);
+  } catch(e){}
+}
+
+/* 通報ボタン押下 */
+async function toggleReport(idx){
+  const r = (window._currentRows || [])[idx];
+  if(!r) return;
+  const key = reportKey(r);
+
+  // ボタンをローディング状態に
+  const btn = document.querySelector(`.report-btn[data-idx="${idx}"]`);
+  if(btn){ btn.disabled = true; btn.textContent = '…'; }
+
+  // 現在のリストから重複チェック
+  const reports = _reports || [];
+  const existing = reports.find(x => reportKey(x) === key);
+
+  if(existing){
+    await removeReport(existing.id);
+  } else {
+    await addReport(r);
+  }
+
+  // キャッシュ更新してUI再描画
+  _reports = await fetchReports();
+  showResult();
+  renderReportPanel();
+}
+
+/* 通報削除ボタン */
+async function deleteReport(id){
+  await removeReport(id);
+  _reports = await fetchReports();
+  renderReportPanel();
+  if(window._currentRows) showResult();
+}
+
+/* 通報パネル描画 */
+function renderReportPanel(){
+  const reports = _reports || [];
+  const toggle = document.getElementById('reportToggle');
+  const panel  = document.getElementById('reportPanel');
+  const list   = document.getElementById('reportList');
+  const cnt1   = document.getElementById('reportToggleCnt');
+  const cnt2   = document.getElementById('reportPanelCnt');
+
+  // GAS URL未設定の場合はメッセージ表示
+  if(GAS_URL.startsWith('ここに')){
+    toggle.style.display = 'flex';
+    toggle.style.cursor = 'default';
+    cnt1.textContent = '!';
+    cnt2.textContent = '0';
+    list.innerHTML = `<div class="report-empty-msg" style="color:var(--warn)">
+      ⚠ GAS_URL が未設定です。gas_code.js をデプロイしてURLを貼り付けてください。
+    </div>`;
+    panel.style.display = 'block';
+    return;
+  }
+
+  toggle.style.display = reports.length ? 'flex' : 'none';
+  cnt1.textContent = reports.length;
+  cnt2.textContent = reports.length;
+
+  if(!reports.length){
+    list.innerHTML = '<div class="report-empty-msg">通報はありません</div>';
+    return;
+  }
+  list.innerHTML = reports.map((r,i)=>`
+    <div class="report-item">
+      <div class="r-loc">${escapeHtml(r.loc)}</div>
+      <div class="r-info">
+        <div class="r-code">${escapeHtml(r.model)} ${escapeHtml(r.code)} <span style="color:var(--accent-warm)">${escapeHtml(r.num)}</span></div>
+        <div class="r-note">${r.desc ? escapeHtml(r.desc) : '—'} <span style="opacity:.5">（${escapeHtml(r.at)}通報）</span></div>
+      </div>
+      <button class="r-del" onclick="deleteReport('${escapeHtml(r.id)}')">取消</button>
+    </div>
+  `).join('');
+}
+
+document.getElementById('reportToggle').addEventListener('click', ()=>{
+  const panel = document.getElementById('reportPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+
+function markOn(container, val){
+  container.querySelectorAll('.opt').forEach(b=>{
+    b.classList.toggle('on', b.dataset.v===val);
+  });
+}
+
+/* --- ステップインジケータ更新 --- */
+function updateSteps(){
+  el.st1.className = 'step' + (state.model ? ' done' : ' active');
+  el.sl1.classList.toggle('done', !!state.model);
+  el.st2.className = 'step' + (state.num ? ' done' : (state.model ? ' active' : ''));
+  el.sl2.classList.toggle('done', !!state.num);
+  el.st3.className = 'step' + (state.num ? ' active' : '');
+}
+
+/* --- リセット --- */
+function reset(){
+  state.model = null; state.num = null;
+  el.optsModel.querySelectorAll('.opt').forEach(b=>b.classList.remove('on'));
+  el.optsNum.innerHTML = '';
+  el.resultList.innerHTML = '';
+  el.rcount.textContent = '0';
+  el.pick1.textContent = ''; el.pick2.textContent = '';
+  el.block2.classList.add('disabled');
+  el.block3.classList.add('disabled');
+  updateSteps();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+el.resetBtn.addEventListener('click', reset);
+
+/* --- 初期化 --- */
+buildModels();
+updateSteps();
+// GASから通報リストを取得して初期描画
+renderReportPanel(); // まず即時描画（URL未設定チェック用）
+fetchReports().then(r => { _reports = r; renderReportPanel(); });
+</script>
+</body>
+</html>
