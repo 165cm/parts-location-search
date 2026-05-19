@@ -820,8 +820,9 @@ async function fetchReports(){
   try {
     const res = await fetch(GAS_URL + '?action=list');
     const json = await res.json();
+    if(!json.ok) console.error('[GAS] list error:', json.error);
     return json.ok ? json.reports : [];
-  } catch(e){ return []; }
+  } catch(e){ console.error('[GAS] list fetch failed:', e); return []; }
 }
 
 /* 通報追加 */
@@ -833,16 +834,19 @@ async function addReport(r){
     });
     const res = await fetch(GAS_URL + '?' + params);
     const json = await res.json();
+    if(!json.ok) console.error('[GAS] add error:', json.error);
     return json.ok ? json.id : null;
-  } catch(e){ return null; }
+  } catch(e){ console.error('[GAS] add fetch failed:', e); return null; }
 }
 
 /* 通報削除 */
 async function removeReport(id){
   try {
     const params = new URLSearchParams({ action:'delete', id });
-    await fetch(GAS_URL + '?' + params);
-  } catch(e){}
+    const res = await fetch(GAS_URL + '?' + params);
+    const json = await res.json();
+    if(!json.ok) console.error('[GAS] delete error:', json.error);
+  } catch(e){ console.error('[GAS] delete fetch failed:', e); }
 }
 
 /* 通報ボタン押下 */
