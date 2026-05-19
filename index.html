@@ -207,6 +207,26 @@
     font-size: 11px; cursor: pointer; font-family: inherit;
   }
   .report-item .r-del:hover { color: var(--warn); border-color: var(--warn); }
+  .report-item .r-edit {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--line);
+    color: var(--ink-dim); border-radius: 5px; padding: 3px 8px;
+    font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .report-item .r-edit:hover { color: var(--accent); border-color: var(--accent); }
+  .report-item.editing { flex-direction: column; align-items: stretch; }
+  .report-item .r-edit-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+  .report-item .r-edit-form input {
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 5px; padding: 5px 8px; font-size: 12px; font-family: inherit;
+    min-width: 0;
+  }
+  .report-item .r-edit-form input.full { grid-column: 1 / -1; }
+  .report-item .r-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .report-item .r-edit-actions button {
+    background: transparent; border: 1px solid var(--line); color: var(--ink-dim);
+    border-radius: 5px; padding: 4px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .report-item .r-edit-actions .r-save { color: var(--accent); border-color: var(--accent); }
   .report-empty-msg { font-size: 12px; color: var(--ink-dim); text-align: center; padding: 12px 0; }
   .report-toggle {
     display: flex; align-items: center; gap: 8px; cursor: pointer;
@@ -688,7 +708,7 @@ const el = {
 };
 
 function escapeHtml(s){
-  return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return String(s ?? '').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
 function uniqSorted(arr){
   return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
@@ -849,6 +869,35 @@ async function removeReport(id){
   } catch(e){ console.error('[GAS] delete fetch failed:', e); }
 }
 
+/* 通報編集 */
+async function updateReport(id, fields){
+  try {
+    const params = new URLSearchParams({ action:'edit', id, ...fields });
+    const res = await fetch(GAS_URL + '?' + params);
+    const json = await res.json();
+    if(!json.ok) console.error('[GAS] edit error:', json.error);
+    return json.ok;
+  } catch(e){ console.error('[GAS] edit fetch failed:', e); return false; }
+}
+
+let _editingId = null;
+function startEdit(id){ _editingId = id; renderReportPanel(); }
+function cancelEdit(){ _editingId = null; renderReportPanel(); }
+async function saveEdit(id){
+  const root = document.querySelector(`.report-item[data-id="${id}"]`);
+  if(!root) return;
+  const fields = {};
+  root.querySelectorAll('input[data-field]').forEach(inp=>{
+    fields[inp.dataset.field] = inp.value;
+  });
+  const ok = await updateReport(id, fields);
+  if(!ok){ alert('更新に失敗しました'); return; }
+  _editingId = null;
+  _reports = await fetchReports();
+  renderReportPanel();
+  if(window._currentRows) showResult();
+}
+
 /* 通報ボタン押下 */
 async function toggleReport(idx){
   const r = (window._currentRows || [])[idx];
@@ -913,16 +962,34 @@ function renderReportPanel(){
     list.innerHTML = '<div class="report-empty-msg">通報はありません</div>';
     return;
   }
-  list.innerHTML = reports.map((r,i)=>`
-    <div class="report-item">
+  list.innerHTML = reports.map((r,i)=>{
+    if(r.id === _editingId){
+      return `
+      <div class="report-item editing" data-id="${escapeHtml(r.id)}">
+        <div class="r-edit-form">
+          <input data-field="model" value="${escapeHtml(r.model)}" placeholder="型番">
+          <input data-field="code"  value="${escapeHtml(r.code)}"  placeholder="部品コード">
+          <input data-field="num"   value="${escapeHtml(r.num)}"   placeholder="数値">
+          <input data-field="loc"   value="${escapeHtml(r.loc)}"   placeholder="棚位置">
+          <input data-field="desc"  value="${escapeHtml(r.desc)}"  placeholder="備考" class="full">
+        </div>
+        <div class="r-edit-actions">
+          <button onclick="cancelEdit()">キャンセル</button>
+          <button class="r-save" onclick="saveEdit('${escapeHtml(r.id)}')">保存</button>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="report-item" data-id="${escapeHtml(r.id)}">
       <div class="r-loc">${escapeHtml(r.loc)}</div>
       <div class="r-info">
         <div class="r-code">${escapeHtml(r.model)} ${escapeHtml(r.code)} <span style="color:var(--accent-warm)">${escapeHtml(r.num)}</span></div>
         <div class="r-note">${r.desc ? escapeHtml(r.desc) : '—'} <span style="opacity:.5">（${escapeHtml(r.at)}通報）</span></div>
       </div>
+      <button class="r-edit" onclick="startEdit('${escapeHtml(r.id)}')">編集</button>
       <button class="r-del" onclick="deleteReport('${escapeHtml(r.id)}')">取消</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 document.getElementById('reportToggle').addEventListener('click', ()=>{
