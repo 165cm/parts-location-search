@@ -44,6 +44,19 @@
   h1 { font-size: clamp(20px, 4vw, 28px); font-weight: 900; letter-spacing: .02em; }
   h1 .mono { font-family: 'JetBrains Mono', monospace; color: var(--accent); }
   .subtitle { font-size: 12px; color: var(--ink-dim); }
+  .intro-hint {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; margin: 10px 0 14px;
+    font-size: 13px; line-height: 1.7; color: var(--ink);
+  }
+  .intro-hint .label-sample {
+    display: inline-block; font-family: 'JetBrains Mono', monospace;
+    background: #0e1420; border: 1px solid var(--line);
+    padding: 1px 8px; border-radius: 4px; margin: 0 2px;
+  }
+  .intro-hint .hl-model { color: var(--accent); font-weight: 700; }
+  .intro-hint .hl-num   { color: var(--accent-warm); font-weight: 700; }
 
   .steps {
     display: flex; align-items: center; gap: 6px;
@@ -274,6 +287,10 @@
       <div class="step" id="st2"><span class="badge">2</span>数値</div>
       <div class="step-line" id="sl2"></div>
       <div class="step" id="st3"><span class="badge">✓</span>棚位置</div>
+    </div>
+    <div class="intro-hint">
+      部品ラベルに書かれた <span class="hl-model">型番</span> と <span class="hl-num">数値（3桁）</span> を順に選ぶと、棚位置が表示されます。<br>
+      例: ラベル <span class="label-sample"><span class="hl-model">M21</span> 5K1 <span class="hl-num">100</span></span> → STEP1で <span class="hl-model">M21</span>、STEP2で <span class="hl-num">100</span> を選択
     </div>
   </header>
 
