@@ -688,7 +688,7 @@ const el = {
 };
 
 function escapeHtml(s){
-  return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return String(s ?? '').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
 function uniqSorted(arr){
   return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'en',{numeric:true}));
