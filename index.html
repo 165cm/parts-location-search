@@ -818,7 +818,7 @@ function reportKey(r){
 async function fetchReports(){
   if(GAS_URL.startsWith('ここに')) return [];
   try {
-    const res = await fetch(GAS_URL + '?action=list');
+    const res = await fetch(GAS_URL + '?action=list&_=' + Date.now(), { cache:'no-store' });
     const json = await res.json();
     if(!json.ok) console.error('[GAS] list error:', json.error);
     return json.ok ? json.reports : [];
