@@ -4,16 +4,20 @@
 
 ## GitHub Pages 公開手順
 
-1. GitHub に新規リポジトリ `parts-location-search` を作成します。
-2. このフォルダをそのリポジトリへ push します。
-3. GitHub の `Settings` > `Pages` を開きます。
-4. `Build and deployment` の `Source` を `Deploy from a branch` にします。
-5. `Branch` を `main`、フォルダを `/ (root)` にして `Save` します。
-6. 数分後、以下の形式で公開されます。
+このリポジトリには `.github/workflows/pages.yml` を同梱しており、`main` への push で自動公開されます。
+
+1. GitHub の `Settings` > `Pages` を開きます。
+2. `Build and deployment` の `Source` を `GitHub Actions` にします。
+3. `main` ブランチに変更を push すると、`Deploy to GitHub Pages` ワークフローが走り、公開されます。
+4. 公開URLは次の形式です。
 
 ```text
 https://<GitHubユーザー名>.github.io/parts-location-search/
 ```
+
+`Actions` タブのワークフロー結果に表示される `page_url` からも確認できます。
+
+> 旧来の `Deploy from a branch`（`main` / `/ (root)`）でも `index.html` と `.nojekyll` のみで公開可能です。その場合はワークフローは不要です。
 
 ## GAS 連携確認
 
