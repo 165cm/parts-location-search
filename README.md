@@ -1,32 +1,35 @@
+![Tier](https://img.shields.io/badge/tier-hobby-blue)
+
 # parts-location-search
 
-部品在庫の棚位置検索ページです。GitHub Pages ではリポジトリ直下の `index.html` を公開します。
+部品名から、倉庫のどの棚にあるかを即座に検索
 
-## GitHub Pages 公開手順
+## これは何?
 
-このリポジトリには `.github/workflows/pages.yml` を同梱しており、`main` への push で自動公開されます。
+Google スプレッドシートで管理している部品在庫と棚位置データを、ブラウザから素早く検索できる静的 Web ページです。  
+Google Apps Script（GAS）をバックエンドに利用し、GitHub Pages で公開しています。
 
-1. GitHub の `Settings` > `Pages` を開きます。
-2. `Build and deployment` の `Source` を `GitHub Actions` にします。
-3. `main` ブランチに変更を push すると、`Deploy to GitHub Pages` ワークフローが走り、公開されます。
-4. 公開URLは次の形式です。
+## こんな時に
 
-```text
-https://<GitHubユーザー名>.github.io/parts-location-search/
-```
+- 部品名やキーワードから倉庫の棚位置をすぐに調べたい
+- スプレッドシートを開かずにスマホや端末から在庫を確認したい
+- 通報（棚番登録）や取消をその場でスプレッドシートに反映したい
 
-`Actions` タブのワークフロー結果に表示される `page_url` からも確認できます。
+## 使い方
 
-> 旧来の `Deploy from a branch`（`main` / `/ (root)`）でも `index.html` と `.nojekyll` のみで公開可能です。その場合はワークフローは不要です。
+公開 URL にアクセスし、検索フォームに部品名を入力するだけです。
 
-## GAS 連携確認
+🔗 [アプリを開く](https://165cm.github.io/parts-location-search/)
 
-`index.html` 内の `GAS_URL` は現在設定済みです。
+## 開発者向け
 
-GitHub Pages で公開後、ページを開いて次を確認します。
+セットアップ・GitHub Pages 公開手順・GAS 連携確認は [DEVELOPER.md](./DEVELOPER.md) を参照してください。
 
-- 通報リストが読み込まれる
-- 検索結果の `通報` ボタンでスプレッドシートへ追加される
-- `取消` でスプレッドシート上の通報が削除される
+## 関連リンク
 
-うまく動かない場合は、GAS 側の Web アプリ公開設定で「アクセスできるユーザー」が `全員` または用途に合う範囲になっているか確認してください。
+- [ポートフォリオ](https://165cm.github.io/portfolio/apps/parts-location-search)
+- [中央運用マニュアル](https://github.com/165cm/portfolio/tree/main/docs/standards)
+
+## License
+
+MIT © 165cm
